@@ -260,6 +260,36 @@ function Get-LinkUrl {
   return $null
 }
 
+# If a FR link fails that contains the historical 51xx token, try swapping to 50xx and re-checking.
+# Note: This is very UNLIKELY to happen. There are none such cases within the 10 prior years only data we have in 2026.
+# We are applying it anyway as we should be aware of possible inconsistencies in the file naming.
+# The checks should be rare and should not increase runtime significantly.
+function Get-French50xxFallbackPair {
+  param(
+    [object]$FrValue,
+    [Parameter(Mandatory)] [string]$Form,
+    [Parameter(Mandatory)] [string]$FrPre2019
+  )
+
+  if ($null -eq $FrValue) { return $null }
+  if (-not ($FrValue -is [object[]] -and $FrValue.Count -ge 2)) { return $null }
+
+  $label = [string]$FrValue[0]
+  $url = [string]$FrValue[1]
+  if ([string]::IsNullOrWhiteSpace($url)) { return $null }
+  if (-not $url.Contains($FrPre2019)) { return $null }
+
+  $fallbackUrl = $url.Replace($FrPre2019, $Form)
+  if ($fallbackUrl -eq $url) { return $null }
+
+  $fallbackLabel = $label
+  if (-not [string]::IsNullOrWhiteSpace($fallbackLabel)) {
+    $fallbackLabel = $fallbackLabel.Replace($FrPre2019, $Form)
+  }
+
+  return @($fallbackLabel, $fallbackUrl)
+}
+
 # Detect language-specific "Not available" markers.
 function Is-NotAvailablePair {
   param([object]$Value, [string]$Lang)
@@ -495,6 +525,21 @@ foreach ($form in $formsForGeneration) {
       $frValid = $false
       if ($enUrl) { $enValid = Test-Url200 -Url $enUrl -TimeoutSec $TimeoutSec }
       if ($frUrl) { $frValid = Test-Url200 -Url $frUrl -TimeoutSec $TimeoutSec }
+
+      # If only FR failed and it uses the historical 51xx token, try 50xx fallback.
+      if ($enValid -and -not $frValid) {
+        $frFallbackPair = Get-French50xxFallbackPair -FrValue $frVal -Form $form -FrPre2019 $frPre2019
+        if ($null -ne $frFallbackPair) {
+          $frFallbackUrl = Get-LinkUrl -Value $frFallbackPair
+          $frFallbackValid = $false
+          if ($frFallbackUrl) { $frFallbackValid = Test-Url200 -Url $frFallbackUrl -TimeoutSec $TimeoutSec }
+          if ($frFallbackValid) {
+            Set-PairInRowAndJson -Row $row -YearValue $yearValue -EnKey $enKey -EnValue @($enVal) -FrKey $frKey -FrValue @($frFallbackPair) -JsonTextRef ([ref]$outJsonFinal)
+            $changedPairs++
+            continue
+          }
+        }
+      }
 
       # Happy path: both links are live, leave as-is.
       if ($enValid -and $frValid) { continue }
