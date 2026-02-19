@@ -234,6 +234,20 @@ function Convert-TableObjectToJsonText {
   return ($lines -join "`r`n")
 }
 
+function Write-Utf8NoBomFile {
+  param(
+    [Parameter(Mandatory)] [string]$Path,
+    [Parameter(Mandatory)] [string]$Content
+  )
+
+  if (-not ($Content.EndsWith("`r`n") -or $Content.EndsWith("`n"))) {
+    $Content += "`r`n"
+  }
+
+  $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
 $resolvedFormsListPath = Resolve-ExistingPath -PathValue $FormsListPath -BaseDir $scriptRoot
 $resolvedResultsDir = Resolve-ExistingPath -PathValue $ResultsDir -BaseDir $scriptRoot
 $resolvedOutputDir = Resolve-DirectoryPath -PathValue $OutputDir -BaseDir $scriptRoot
@@ -269,7 +283,7 @@ foreach ($form in $forms) {
     if ($DryRun) {
       Write-Host "[DryRun] Parsed $form -> $outPath"
     } else {
-      Set-Content -LiteralPath $outPath -Value $json -Encoding utf8
+      Write-Utf8NoBomFile -Path $outPath -Content $json
       Write-Host "Wrote $outPath"
     }
     $successCount++
