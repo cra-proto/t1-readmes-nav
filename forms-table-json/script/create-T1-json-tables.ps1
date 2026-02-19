@@ -14,6 +14,8 @@ Logic Map
    - Normalize existing "Not available" (NA) markers to symmetric EN+FR NA.
    - Validate generated EN+FR URLs (HEAD -> GET, status 200-399).
    - If either side fails, mark pair as EN+FR NA.
+   - If all bilingual pairs in a year row are NA, rewrite that whole row as
+     "Not applicable" / "Pas applicable".
 6) Write validated output using preserved template encoding/newline style (or print DryRun summary).
 #>
 
@@ -269,6 +271,21 @@ function Is-NotAvailablePair {
   return $false
 }
 
+function Is-NotApplicablePair {
+  param([object]$Value, [string]$Lang)
+  if ($null -eq $Value) { return $false }
+  if ($Value -is [object[]] -and $Value.Count -eq 1) {
+    if ($Lang -eq 'en') { return ($Value[0] -eq 'Not applicable') }
+    if ($Lang -eq 'fr') { return ($Value[0] -eq 'Pas applicable') }
+  }
+  return $false
+}
+
+function Is-UnavailablePair {
+  param([object]$Value, [string]$Lang)
+  return (Is-NotAvailablePair -Value $Value -Lang $Lang) -or (Is-NotApplicablePair -Value $Value -Lang $Lang)
+}
+
 # Serialize an array into compact inline JSON (e.g. ["a","b"]).
 # Used when writing per-cell replacements back into the raw JSON text.
 function Convert-ArrayToInlineJson {
@@ -315,16 +332,32 @@ function Set-PairToNotAvailable {
   Set-PairInRowAndJson -Row $Row -YearValue $YearValue -EnKey $EnKey -EnValue $EN_NA -FrKey $FrKey -FrValue $FR_NA -JsonTextRef $JsonTextRef
 }
 
+function Set-PairToNotApplicable {
+  param(
+    [Parameter(Mandatory)] [psobject]$Row,
+    [Parameter(Mandatory)] [string]$YearValue,
+    [Parameter(Mandatory)] [string]$EnKey,
+    [Parameter(Mandatory)] [string]$FrKey,
+    [Parameter(Mandatory)] [ref]$JsonTextRef
+  )
+
+  Set-PairInRowAndJson -Row $Row -YearValue $YearValue -EnKey $EnKey -EnValue $EN_NAP -FrKey $FrKey -FrValue $FR_NAP -JsonTextRef $JsonTextRef
+}
+
 function Normalize-NaArrayLiterals {
   param([Parameter(Mandatory)] [string]$JsonText)
   $out = $JsonText
   $out = [regex]::Replace($out, '("(?<k>[^"]+_en)"\s*:\s*)"Not available"', '$1["Not available"]')
   $out = [regex]::Replace($out, '("(?<k>[^"]+_fr)"\s*:\s*)"Pas disponible"', '$1["Pas disponible"]')
+  $out = [regex]::Replace($out, '("(?<k>[^"]+_en)"\s*:\s*)"Not applicable"', '$1["Not applicable"]')
+  $out = [regex]::Replace($out, '("(?<k>[^"]+_fr)"\s*:\s*)"Pas applicable"', '$1["Pas applicable"]')
   return $out
 }
 
 $EN_NA = @('Not available')
 $FR_NA = @('Pas disponible')
+$EN_NAP = @('Not applicable')
+$FR_NAP = @('Pas applicable')
 
 $FormsListPath = Resolve-ExistingPath -PathValue $FormsListPath -BaseDir $scriptRoot
 $TemplatePath = Resolve-ExistingPath -PathValue $TemplatePath -BaseDir $scriptRoot
@@ -469,6 +502,39 @@ foreach ($form in $formsForGeneration) {
       # Pair-level rule: if either side fails, mark pair as unavailable.
       if (-not ($enValid -and $frValid)) {
         Set-PairToNotAvailable -Row $row -YearValue $yearValue -EnKey $enKey -FrKey $frKey -JsonTextRef ([ref]$outJsonFinal)
+        $changedPairs++
+      }
+    }
+
+    # If all bilingual pairs in this year are unavailable, promote the whole row
+    # from "Not available" to "Not applicable".
+    $allPairsUnavailable = $true
+    foreach ($base in $bases) {
+      $enKey = "${base}_en"
+      $frKey = "${base}_fr"
+      if (-not ($row.PSObject.Properties.Name -contains $enKey)) { continue }
+      if (-not ($row.PSObject.Properties.Name -contains $frKey)) { continue }
+
+      $enIsUnavailable = Is-UnavailablePair -Value $row.$enKey -Lang 'en'
+      $frIsUnavailable = Is-UnavailablePair -Value $row.$frKey -Lang 'fr'
+      if (-not ($enIsUnavailable -and $frIsUnavailable)) {
+        $allPairsUnavailable = $false
+        break
+      }
+    }
+
+    if ($allPairsUnavailable -and $bases.Count -gt 0) {
+      foreach ($base in $bases) {
+        $enKey = "${base}_en"
+        $frKey = "${base}_fr"
+        if (-not ($row.PSObject.Properties.Name -contains $enKey)) { continue }
+        if (-not ($row.PSObject.Properties.Name -contains $frKey)) { continue }
+
+        $enAlreadyNap = Is-NotApplicablePair -Value $row.$enKey -Lang 'en'
+        $frAlreadyNap = Is-NotApplicablePair -Value $row.$frKey -Lang 'fr'
+        if ($enAlreadyNap -and $frAlreadyNap) { continue }
+
+        Set-PairToNotApplicable -Row $row -YearValue $yearValue -EnKey $enKey -FrKey $frKey -JsonTextRef ([ref]$outJsonFinal)
         $changedPairs++
       }
     }
