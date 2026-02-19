@@ -179,16 +179,35 @@ function Write-TextFileWithEncoding {
 # - No retry/backoff here (caller controls timeout only)
 function Test-Url200 {
   param([Parameter(Mandatory)] [string]$Url, [int]$TimeoutSec = 10)
+
+  function Get-HttpStatusFromError {
+    param([Parameter(Mandatory)] $ErrorRecord)
+    try {
+      $resp = $ErrorRecord.Exception.Response
+      if ($null -eq $resp) { return $null }
+      if ($resp -is [System.Net.HttpWebResponse]) { return [int]$resp.StatusCode }
+      if ($resp.PSObject.Properties.Name -contains 'StatusCode') { return [int]$resp.StatusCode }
+    } catch {
+      return $null
+    }
+    return $null
+  }
+
   try {
     $resp = Invoke-WebRequest -Uri $Url -Method Head -TimeoutSec $TimeoutSec -MaximumRedirection 0 -ErrorAction Stop
     if ($resp.StatusCode -ge 200 -and $resp.StatusCode -le 399) { return $true }
   } catch {
-    try {
-      $resp2 = Invoke-WebRequest -Uri $Url -Method Get -TimeoutSec $TimeoutSec -MaximumRedirection 0 -ErrorAction Stop
-      if ($resp2.StatusCode -ge 200 -and $resp2.StatusCode -le 399) { return $true }
-    } catch {
-      return $false
-    }
+    $headStatus = Get-HttpStatusFromError -ErrorRecord $_
+    if ($headStatus -ge 200 -and $headStatus -le 399) { return $true }
+  }
+
+  try {
+    $resp2 = Invoke-WebRequest -Uri $Url -Method Get -TimeoutSec $TimeoutSec -MaximumRedirection 0 -ErrorAction Stop
+    if ($resp2.StatusCode -ge 200 -and $resp2.StatusCode -le 399) { return $true }
+  } catch {
+    $getStatus = Get-HttpStatusFromError -ErrorRecord $_
+    if ($getStatus -ge 200 -and $getStatus -le 399) { return $true }
+    return $false
   }
   return $false
 }
