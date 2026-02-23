@@ -1,9 +1,13 @@
 <section id="lac-en">
-  <h3>Older versions</h3>
-  <section id="lac-cntn-en">
-    <p>Tax packages are preserved by Library and Archives Canada. To access them, consult the Government of Canada Web Archive website.</p>
-    <p><a href=https://webarchiveweb.wayback.bac-lac.canada.ca/web/20250403094844/https:/www.canada.ca/en/revenue-agency/services/forms-publications/tax-packages-years.html>Access versions older than 10 years<span class="wb-inv"> on the Government of Canada Web Archive web site</span></a>.</p>
-  </section>
+  <ul class="fa-ul">
+    <li><span class="fas fa-archive text-muted fa-lg fa-li"></span>
+      <h3>Older versions</h3>
+      <section id="lac-cntn-en">
+        <p>Tax packages are preserved by Library and Archives Canada. To access them, consult the Government of Canada Web Archive website.</p>
+        <p><a href=https://webarchiveweb.wayback.bac-lac.canada.ca/web/20250403094844/https:/www.canada.ca/en/revenue-agency/services/forms-publications/tax-packages-years.html>Access versions older than 10 years<span class="wb-inv"> on the Government of Canada Web Archive web site</span></a>.</p>
+      </section>
+    </li>
+  </ul>
 </section>
 <section id="lac-fr">
   <h3>Translate: <mark>Older versions</mark></h3>
