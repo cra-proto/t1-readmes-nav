@@ -1,5 +1,5 @@
 <section id="lac-en">
-  <ul class="fa-ul mrgn-tp-sm">
+  <ul class="fa-ul">
     <li><span class="fas fa-archive text-muted fa-lg fa-li"></span>
       <h3>Older versions</h3>
       <section id="lac-cntn-en">
@@ -10,7 +10,7 @@
   </ul>
 </section>
 <section id="lac-fr">
-  <ul class="fa-ul mrgn-tp-sm">
+  <ul class="fa-ul">
     <li><span class="fas fa-archive text-muted fa-lg fa-li"></span>
       <h3>Translate: <mark>Older versions</mark></h3>
       <section id="lac-cntn-fr">
